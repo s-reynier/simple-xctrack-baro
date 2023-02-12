@@ -2,6 +2,7 @@
 #include <BLEUtils.h>
 #include <BLEServer.h>
 #include <Wire.h>
+#include <math.h>
 #include <Adafruit_BMP280.h>
 
 Adafruit_BMP280 bmp; // use I2C interface
@@ -15,7 +16,6 @@ Adafruit_BMP280 bmp; // use I2C interface
 
 BLECharacteristic *pCharacteristic;
 #define BT_PACKET_SIZE 20
-
 
 void setup() {
   Serial.begin(115200);
@@ -68,30 +68,16 @@ static uint8_t ble_uart_nmea_checksum(const char *szNMEA){
   
 // $LXWP0,N,,598.9,0.02,,,,,,,,*52  
 // $LK8EX1,101133,99999,22,36,1000,*2F
-void sendTrameLK8EX1()
-{
-
-    char szmsg[40];
-    //https://github.com/LK8000/LK8000/blob/master/Docs/LK8EX1.txt
-    sprintf(szmsg, "$LK8EX1,%d,%d,%d,99,999*", 101111,99999, 9999);
-    uint8_t cksum = ble_uart_nmea_checksum(szmsg);
-    char szcksum[5];
-    sprintf(szcksum,"%02X\r\n", cksum);
-    strcat(szmsg, szcksum);
-
-    Serial.print(szmsg);
-    pCharacteristic->setValue(szmsg);
-    pCharacteristic->notify();   
-}
-
 void loop() {
 
+    double pressure = floor(bmp.readPressure());
+    float temp = bmp.readTemperature();
    Serial.print(F("Temperature = "));
-    Serial.print(bmp.readTemperature());
+    Serial.print(temp);
     Serial.println(" *C");
 
     Serial.print(F("Pressure = "));
-    Serial.print(bmp.readPressure());
+    Serial.print(pressure);
     Serial.println(" Pa");
 
     //Serial.print(F("Approx altitude = "));
@@ -101,8 +87,19 @@ void loop() {
     Serial.println();
 
 
+    char szmsg[40];
+    //https://github.com/LK8000/LK8000/blob/master/Docs/LK8EX1.txt
+    sprintf(szmsg, "$LK8EX1,%d,%d,%.2f,99,999*", (uint32_t) pressure,99999, temp
+    );
+    uint8_t cksum = ble_uart_nmea_checksum(szmsg);
+    char szcksum[5];
+    sprintf(szcksum,"%02X\r\n", cksum);
+    strcat(szmsg, szcksum);
+
+    Serial.print(szmsg);
+    pCharacteristic->setValue(szmsg);
+    pCharacteristic->notify();   
   
-  // put your main code here, to run repeatedly:
-  sendTrameLK8EX1();
+
   delay(1000);
 }
